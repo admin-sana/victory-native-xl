@@ -1,0 +1,65 @@
+# Publishes lib/ (source + built dist) as a flat, installable package on the
+# `pkg` branch, so sana-mobile can consume it as a git dependency instead of a
+# `file:../victory-native-xl/lib` sibling path.
+#
+# yarn.lock v1 cannot install from a subdirectory of a repo, and the repo root
+# is a private monorepo — hence the flattening. `pkg` is a build-artifact
+# branch: it is force-pushed as a single commit and has no history. Never
+# commit to it by hand.
+name: Publish pkg branch
+
+on:
+  push:
+    # sana-mobile tracks whichever branch its package.json points at, so any
+    # branch that can be a dependency must auto-publish. ponytail: two branches
+    # pushed at once both force-push `pkg` and the last one wins — harmless,
+    # since consumers pin a commit in yarn.lock until they run `yarn upgrade`.
+    branches: [main, 'sprint-*']
+  # Publish from any other branch by selecting it in the "Run workflow" dropdown.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-pkg
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      # sana-mobile's Metro resolves the `react-native: src/index` field, but
+      # `yarn type-check` resolves `types: dist/index.d.ts` — so dist must ship.
+      - run: yarn workspace victory-native build
+
+      - name: Force-push lib/ to the pkg branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/pkg"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          cp -R lib/package.json lib/src lib/dist "$STAGE/"
+          # `&& cp` alone would exit non-zero under `set -e` when absent.
+          if [ -f lib/CHANGELOG.md ]; then cp lib/CHANGELOG.md "$STAGE/"; fi
+          cd "$STAGE"
+          git init -q -b pkg
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -qm "pkg: built from ${GITHUB_REF_NAME}@${GITHUB_SHA}"
+          # Token is only in the URL for this one command and is masked in logs.
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" pkg
+          echo "published pkg = $(git rev-parse HEAD) (from ${GITHUB_REF_NAME}@${GITHUB_SHA})"
