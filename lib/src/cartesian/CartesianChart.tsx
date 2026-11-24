@@ -455,8 +455,8 @@ function CartesianChartContent<
 
           handleTouch(
             v,
-            touch.absoluteX - scrolledX,
-            touch.absoluteY - scrolledY,
+            touch.x - scrolledX,
+            touch.y - scrolledY,
           );
         } else {
           // Dedupe by touch id so re-fired updates for the same finger don't
@@ -493,8 +493,8 @@ function CartesianChartContent<
 
         handleTouch(
           v,
-          touch.absoluteX - scrolledX,
-          touch.absoluteY - scrolledY,
+          touch.x - scrolledX,
+          touch.y - scrolledY,
         );
       }
     })
@@ -526,8 +526,8 @@ function CartesianChartContent<
 
         handleTouch(
           v,
-          touch.absoluteX - scrolledX,
-          touch.absoluteY - scrolledY,
+          touch.x - scrolledX,
+          touch.y - scrolledY,
         );
       }
     })
